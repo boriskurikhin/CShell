@@ -4,13 +4,14 @@
 #include <pwd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <strings.h>
 
 #define BUFFER_LEN 1024
 #define true 1
 #define false 0
 #define DEBUG 1
 
-typedef enum shi {ARGS, NO_ARGS, BG, NO_BG, FROM_FILE, TO_FILE, NO_FILE } ShellInput;
+typedef enum shit /* lmao */ {ARGS, NO_ARGS, BG, NO_BG, FROM_FILE, TO_FILE, NO_FILE } ShellInput;
 
 /* Helper function that helps us parse the file */
 int check(int i, char * input, char c) {
@@ -128,28 +129,38 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
         i++;
     }
 
-    /* Last param, no space */
+    /* Last (or first & only) param, no space */
     if (strlen(arg)) {
         if (result == NULL) result = calloc(1, sizeof(char *) );
         else result = realloc(result, sizeof(char *) * (numArgs + 1));
         result[numArgs] = (char *) calloc(1, strlen(arg) + 1);
         strcpy(result[numArgs++], arg);
     }
-
     /* Check arguments */
     *_args = (hasArguments ? ARGS : NO_ARGS);
     /* Check for file */
     if (fromfile) {
         *_file = FROM_FILE;
+        /* If we specified a file, but no file has been passed */
+        /* Or somehow to file was also passed */
+        if (strlen(filename) == 0 || tofile ) {
+            for (int j = 0; j < numArgs; j++) free(result[j]);
+            free(result);
+            return NULL;
+        }
         result[numArgs++] = (char *) calloc(1, strlen(filename) + 1);
         strcpy(result[numArgs - 1], filename);
-    }
-    else if (tofile) {
+    } else if (tofile) {
         *_file = TO_FILE;
+        /* If we specified a file, but no file was passed */
+        if (strlen(filename) == 0) {
+            for (int j = 0; j < numArgs; j++) free(result[j]);
+            free(result);
+            return NULL;
+        }
         result[numArgs++] = (char *) calloc(1, strlen(filename) + 1);
         strcpy(result[numArgs - 1], filename);
-    }
-    else *_file = NO_FILE;
+    } else *_file = NO_FILE;
     /* Check for bg */
     *_bg = (background ? BG : NO_BG);
     *size = numArgs;
@@ -190,15 +201,33 @@ int main() {
     /* Prompt */
     while (1) {
         printf("[%s@%s]%c ", username, hostname, (!geteuid() ? '#' : '$'));
+        fflush(stdout);
+
         if (fgets(input, 2048, stdin) != NULL) {
             /* Remove the appended \n */
             input[strlen(input) - 1] = '\0';
+            
+            /* Empty, just re-display the shell */
+            if (!strlen(input)) continue;
+            /* Exit command has been passed in */
+            if (!strcmp(input, "exit")) break;
+
             int numArgs = 0;
             ShellInput _args, _file, _bg;
-            char ** parsed_input = parse_input(input, &numArgs, &_args, &_file, &_bg);
-            if (parsed_input == NULL) {
-                printf("Error occured might have to exit...\n");
-            } else {
+            /* Some variables for execution */
+            pid_t fork_id;
+            int executeStatus;
+
+            if ((fork_id = fork()) < 0) {
+                /* The fork failed, need to do something */
+                printf("The fork failed!\n");
+                break;
+            } else if (fork_id == 0) {
+                /* Child process has been spawned */
+                char ** parsed_input = parse_input(input, &numArgs, &_args, &_file, &_bg);
+                /* This is an error! Handle it later! */
+                if (parsed_input == NULL) break;
+                
                 #if DEBUG
                     for (int j = 0; j < numArgs; j++) printf("[%s],", parsed_input[j]);
                     printf("\n");
@@ -206,14 +235,22 @@ int main() {
                     print_shellInput(&_file);
                     print_shellInput(&_bg);
                 #endif
+                
+                /* Check if execution gets gg'ed */
+                if (execvp(parsed_input[0], parsed_input) < 0) {
+                    printf("Execution failed\n");
+                    break;
+                }
             }
-            break;
+
+            waitpid(fork_id, &executeStatus, 0);
+            /* Need to handle execution status */
+
         } else {
             /* Something bad happened, free all memory & exit */
             free(username);
             exit(1);
         }
-        break;
     }
     free(username);
     return 0;
