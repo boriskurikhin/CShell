@@ -80,15 +80,6 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
                 }
             }
         /* Check for arguments */
-        } else if (input[i] == '-' && !openQuotes) {
-            if (check(i-1, input, ' ') && check(i+1, input, 'l') && check(i+2, input, ' ') ) {
-                hasArguments = 1;
-                i += 3;
-                continue;
-            } else {
-                i++;
-                continue;
-            }
         } else if (input[i] == '>' && !openQuotes) {
             if (check(i-1,input,' ') && check(i+1,input, ' ')) {
                 if (fromfile || tofile || (i + 2 >= strlen(input))) {
@@ -177,12 +168,26 @@ long gcd(char * a, char * b) {
     long num1 = 0, num2 = 0;
     if (strlen(a) < 3) num1 = strtol(a, NULL, 10);
     else {
-        if (a[0] == '0' && a[1] == 'x') num1 = strtol(a, NULL, 16);
+        if (a[0] == '0' && a[1] == 'x') {
+            for (int j = 2; j < strlen(a); j++) {
+                if (!( (a[j] >= '0' && a[j] <= '9') || (a[j] >= 'A' && a[j] <= 'F') || (a[j] >= 'a' && a[j] <= 'f')) ) {
+                    return -1;
+                }
+            }
+            num1 = strtol(a, NULL, 16);
+        }
         else num1 = strtol(a, NULL, 10);
     }
     if (strlen(b) < 3) num2 = strtol(b, NULL, 10);
     else {
-        if (b[0] == '0' && b[1] == 'x') num2 = strtol(b, NULL, 16);
+        if (b[0] == '0' && b[1] == 'x') {
+            for (int j = 2; j < strlen(b); j++) {
+                if (!( (b[j] >= '0' && b[j] <= '9') || (b[j] >= 'A' && b[j] <= 'F') || (b[j] >= 'a' && b[j] <= 'f')) ) {
+                    return -1;
+                }
+            }
+            num2 = strtol(b, NULL, 16);
+        }
         else num2 = strtol(b, NULL, 10);
     }
     /* check */
@@ -266,6 +271,7 @@ int main() {
                     print_shellInput(&_bg);
                 #endif
 
+                /* Check for our built in functions */
                 if (!strcmp(parsed_input[0], "gcd")) {
                     long answer = gcd(parsed_input[1], parsed_input[2]);
                     if (answer == -1) printf("No GCD was found!\n");
@@ -273,14 +279,15 @@ int main() {
                     break;
                 } else if (!strcmp(parsed_input[0], "args")) {
                     printf("argc = %d, args = ", numArgs - 1);
-                    for (int j = 1; j < numArgs; j++) {
+                    for (int j = 1; j < numArgs; j++)
                         printf("%s%s", parsed_input[j], (j < numArgs - 1) ? ", " : "\n");
-                    }
                     break;
                 }
-                
                 /* Check if execution gets gg'ed */
-                if (execvp(parsed_input[0], parsed_input) < 0) {
+                parsed_input = realloc(parsed_input, (numArgs + 1) * sizeof(char *));
+                parsed_input[numArgs++] = NULL;
+                /* random shit */
+                if (execvp(*parsed_input, parsed_input) < 0) {
                     /* We can now check PATH, and see if there exists another command */
 
                     printf("Execution failed\n");
