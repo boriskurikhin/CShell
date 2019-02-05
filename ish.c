@@ -283,10 +283,10 @@ int main() {
                         printf("%s%s", parsed_input[j], (j < numArgs - 1) ? ", " : "\n");
                     break;
                 }
-                /* Check if execution gets gg'ed */
+                /* We must add a NULL as the last element apparently*/
                 parsed_input = realloc(parsed_input, (numArgs + 1) * sizeof(char *));
                 parsed_input[numArgs++] = NULL;
-                /* random shit */
+                /* No we can properly run this */
                 if (execvp(*parsed_input, parsed_input) < 0) {
                     /* We can now check PATH, and see if there exists another command */
 
