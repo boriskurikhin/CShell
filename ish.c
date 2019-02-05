@@ -50,9 +50,9 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
     /* Main parsing loop */
     while (check(i, input, '_')) {
         /* Found a space */
-        if (input[i] == ' ') {
+        if (input[i] == ' ' && !openQuotes) {
             /* We can skip spaces */
-            if (check(i + 1, input, ' ') || openQuotes) {
+            if (check(i + 1, input, ' ')) {
                 i++;
                 continue;
             } else {
@@ -80,7 +80,7 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
                 }
             }
         /* Check for arguments */
-        } else if (input[i] == '-') {
+        } else if (input[i] == '-' && !openQuotes) {
             if (check(i-1, input, ' ') && check(i+1, input, 'l') && check(i+2, input, ' ') ) {
                 hasArguments = 1;
                 i += 3;
@@ -89,7 +89,7 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
                 i++;
                 continue;
             }
-        } else if (input[i] == '>') {
+        } else if (input[i] == '>' && !openQuotes) {
             if (check(i-1,input,' ') && check(i+1,input, ' ')) {
                 if (fromfile || tofile || (i + 2 >= strlen(input))) {
                     /* Can't have a from file and to file */
@@ -104,7 +104,7 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
                 /* Gonna need to add file later */
                 break;
             }
-        } else if(input[i] == '<') {
+        } else if(input[i] == '<' && !openQuotes) {
             if (check(i-1,input,' ') && check(i+1,input, ' ')) {
                 if (fromfile || tofile || (i + 2 >= strlen(input))) {
                     /* Can't have a from file and to file */
@@ -119,7 +119,7 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
                 /* Gonna need to add file later */
                 break;
             }
-        } else if (input[i] == '&') {
+        } else if (input[i] == '&' && !openQuotes) {
             /* Check if it's not part of input, and that it's the last thing on the line */
             if ( check(i-1,input, ' ') && (i + 1) == strlen(input)) {
                 background = 1;
