@@ -12,6 +12,7 @@
 #define DEBUG 1
 
 typedef enum shit /* lmao */ {ARGS, NO_ARGS, BG, NO_BG, FROM_FILE, TO_FILE, NO_FILE } ShellInput;
+long find_gcd(long a, long b);
 
 /* Helper function that helps us parse the file */
 int check(int i, char * input, char c) {
@@ -36,6 +37,7 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
     char ** result = NULL;
     int numArgs = 0;
     int hasArguments = 0;
+    int openQuotes = 0;
 
     /* Some more stuff to check later */
     int tofile = 0;
@@ -50,7 +52,7 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
         /* Found a space */
         if (input[i] == ' ') {
             /* We can skip spaces */
-            if (check(i + 1, input, ' ')) {
+            if (check(i + 1, input, ' ') || openQuotes) {
                 i++;
                 continue;
             } else {
@@ -123,7 +125,8 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
                 background = 1;
                 break;
             }
-        }
+        } 
+        if (input[i] == '"') openQuotes ^= 1;
         arg[k++] = input[i];
         arg[k] = '\0';
         i++;
@@ -167,6 +170,33 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
     /* Finally return result */
 
     return result;
+}
+
+long gcd(char * a, char * b) {
+    if (!strlen(a) || !strlen(b)) return -1;
+    long num1 = 0, num2 = 0;
+    if (strlen(a) < 3) num1 = strtol(a, NULL, 10);
+    else {
+        if (a[0] == '0' && a[1] == 'x') num1 = strtol(a, NULL, 16);
+        else num1 = strtol(a, NULL, 10);
+    }
+    if (strlen(b) < 3) num2 = strtol(b, NULL, 10);
+    else {
+        if (b[0] == '0' && b[1] == 'x') num2 = strtol(b, NULL, 16);
+        else num2 = strtol(b, NULL, 10);
+    }
+    /* check */
+    if (num1 < num2) {
+        int temp = num2;
+        num2 = num1;
+        num1 = temp;
+    }
+    return find_gcd(num1, num2);
+}
+
+long find_gcd(long a, long b) {
+    if (b == 0) return a;
+    return find_gcd(b, a % b);
 }
 
 char * get_username(uid_t id) {
@@ -235,9 +265,24 @@ int main() {
                     print_shellInput(&_file);
                     print_shellInput(&_bg);
                 #endif
+
+                if (!strcmp(parsed_input[0], "gcd")) {
+                    long answer = gcd(parsed_input[1], parsed_input[2]);
+                    if (answer == -1) printf("No GCD was found!\n");
+                    else printf("GCD(%s, %s) = %ld\n", parsed_input[1], parsed_input[2], answer);
+                    break;
+                } else if (!strcmp(parsed_input[0], "args")) {
+                    printf("argc = %d, args = ", numArgs - 1);
+                    for (int j = 1; j < numArgs; j++) {
+                        printf("%s%s", parsed_input[j], (j < numArgs - 1) ? ", " : "\n");
+                    }
+                    break;
+                }
                 
                 /* Check if execution gets gg'ed */
                 if (execvp(parsed_input[0], parsed_input) < 0) {
+                    /* We can now check PATH, and see if there exists another command */
+
                     printf("Execution failed\n");
                     break;
                 }
