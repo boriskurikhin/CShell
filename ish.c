@@ -11,7 +11,7 @@
 #define false 0
 #define DEBUG 1
 
-typedef enum shit /* lmao */ {ARGS, NO_ARGS, BG, NO_BG, FROM_FILE, TO_FILE, NO_FILE } ShellInput;
+typedef enum shit /* lmao */ {BG, NO_BG, FROM_FILE, TO_FILE, NO_FILE } ShellInput;
 long find_gcd(long a, long b);
 
 /* Helper function that helps us parse the file */
@@ -21,9 +21,9 @@ int check(int i, char * input, char c) {
     if (c == '_') return 1; /* Don't check character */
     return input[i] == c ? 1 : 0;
 }
-char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _file, ShellInput * _bg) {
+char ** parse_input(char * input, int * size, ShellInput * _file, ShellInput * _bg) {
     /* Quick Checks */
-    if (input == NULL || _args == NULL || _file == NULL || _bg == NULL || !strlen(input)) {
+    if (input == NULL || _file == NULL || _bg == NULL || !strlen(input)) {
         /* Error occured, might as well return exit(1) later. */
         return NULL;
     }
@@ -33,10 +33,9 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
     int len = strlen(input);
     
     /* Setting up some variables, for parsing */
-    char arg[1000] = "";
+    char arg[1000] = "\0";
     char ** result = NULL;
     int numArgs = 0;
-    int hasArguments = 0;
     int openQuotes = 0;
 
     /* Some more stuff to check later */
@@ -44,7 +43,7 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
     int fromfile = 0;
     int background = 0;
 
-    char filename[256] = "";
+    char filename[256] = "\0";
     int k = 0;
 
     /* Main parsing loop */
@@ -71,7 +70,7 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
                     numArgs++;
                     i++;
                     k = 0;
-                    strcpy(arg, "\0");
+                    strcpy(arg, "");
                     continue;
                 } else {
                     /* Leading spaces */
@@ -130,8 +129,7 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
         result[numArgs] = (char *) calloc(1, strlen(arg) + 1);
         strcpy(result[numArgs++], arg);
     }
-    /* Check arguments */
-    *_args = (hasArguments ? ARGS : NO_ARGS);
+
     /* Check for file */
     if (fromfile) {
         *_file = FROM_FILE;
@@ -142,6 +140,10 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
             free(result);
             return NULL;
         }
+        /* Allocate another index */
+        if (result == NULL) result = calloc(1, sizeof(char *) );
+        else result = realloc(result, sizeof(char *) * (numArgs + 1));
+        /* Write to it */
         result[numArgs++] = (char *) calloc(1, strlen(filename) + 1);
         strcpy(result[numArgs - 1], filename);
     } else if (tofile) {
@@ -152,6 +154,10 @@ char ** parse_input(char * input, int * size, ShellInput * _args, ShellInput * _
             free(result);
             return NULL;
         }
+        /* Allocate another index */
+        if (result == NULL) result = calloc(1, sizeof(char *) );
+        else result = realloc(result, sizeof(char *) * (numArgs + 1));
+        /* Write to it */
         result[numArgs++] = (char *) calloc(1, strlen(filename) + 1);
         strcpy(result[numArgs - 1], filename);
     } else *_file = NO_FILE;
@@ -214,8 +220,6 @@ char * get_username(uid_t id) {
 void print_shellInput(ShellInput * input) {
     if (input == NULL) return;
     switch (*input) {
-        case ARGS: printf("ARGS: TRUE\n"); break;
-        case NO_ARGS: printf("ARGS: FALSE\n"); break;
         case BG: printf("BG_PROCESS: TRUE\n"); break;
         case NO_BG: printf("BG_PROCESS: FALSE\n"); break;
         case FROM_FILE: printf("FILE: FROM\n"); break;
@@ -246,9 +250,9 @@ int main() {
             if (!strlen(input)) continue;
             /* Exit command has been passed in */
             if (!strcmp(input, "exit")) break;
-
+ 
             int numArgs = 0;
-            ShellInput _args, _file, _bg;
+            ShellInput _file, _bg;
             /* Some variables for execution */
             pid_t fork_id;
             int executeStatus;
@@ -259,14 +263,13 @@ int main() {
                 break;
             } else if (fork_id == 0) {
                 /* Child process has been spawned */
-                char ** parsed_input = parse_input(input, &numArgs, &_args, &_file, &_bg);
+                char ** parsed_input = parse_input(input, &numArgs, &_file, &_bg);
                 /* This is an error! Handle it later! */
                 if (parsed_input == NULL) break;
                 
                 #if DEBUG
                     for (int j = 0; j < numArgs; j++) printf("[%s],", parsed_input[j]);
                     printf("\n");
-                    print_shellInput(&_args);
                     print_shellInput(&_file);
                     print_shellInput(&_bg);
                 #endif
@@ -313,7 +316,7 @@ const char *mypath[] = { "./",
 "/usr/bin/", "/bin/", NULL
 };
 
-while (...)
+while (...) 
 {
 
 printf ("prompt> ");

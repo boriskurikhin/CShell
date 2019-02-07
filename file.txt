@@ -1,0 +1,9 @@
+total 104
+-rwxr-xr-x@ 1 boris  staff     74 Feb  5 03:10 Makefile
+-rw-r--r--  1 boris  staff      0 Feb  6 05:54 file.txt
+-rwxr-xr-x@ 1 boris  staff  11111 Feb  6 05:54 ish.c
+-rwxr-xr-x  1 boris  staff  14628 Feb  6 05:54 ish.o
+drwxr-xr-x  3 boris  staff    102 Feb  5 03:10 ish.o.dSYM
+-rwxr-xr-x@ 1 boris  staff    477 Jan 29 15:50 lex.c
+-rwxr-xr-x  1 boris  staff  13820 Feb  2 22:10 shell
+drwxr-xr-x  3 boris  staff    102 Jan 30 17:38 shell.dSYM
