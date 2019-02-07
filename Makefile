@@ -1,6 +1,8 @@
 all: ish 
-ish: ish.c
-	gcc -Wall -g ish.c -o ish.o
+adder: adder.c adder.h
+	gcc -Wall -g -c adder.c -o adder.o 
+ish: ish.c adder
+	gcc -Wall -g -Iadder.h ish.c adder.o -o ish.o 
 clean:
 	rm -f *.o
 	

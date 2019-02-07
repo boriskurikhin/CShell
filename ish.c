@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <strings.h>
 #include <fcntl.h>
+#include "adder.h"
 
 #define BUFFER_LEN 1024
 #define DEBUG 1
@@ -278,6 +279,13 @@ int main() {
             if (fork_id == 0) {
                 /* Child process has been spawned */
                 /* This is an error! Handle it later! */
+                
+                #if DEBUG
+                    for (int j = 0; j < numArgs; j++) printf("[%s],", parsed_input[j]);
+                    printf("\n");
+                    print_shellInput(&_file);
+                    print_shellInput(&_bg);
+                #endif
 
                 if (_file == TO_FILE || _file == FROM_FILE) {
                     fp = freopen(parsed_input[numArgs - 1], "w+", stdout);
@@ -291,22 +299,20 @@ int main() {
                     numArgs--;
                 }
                 
-                #if DEBUG
-                    for (int j = 0; j < numArgs; j++) printf("[%s],", parsed_input[j]);
-                    printf("\n");
-                    print_shellInput(&_file);
-                    print_shellInput(&_bg);
-                #endif
-
                 /* Check for our built in functions */
                 if (!strcmp(parsed_input[0], "gcd")) {
                     long answer = gcd(parsed_input[1], parsed_input[2]);
                     if (answer == -1) printf("No GCD was found!\n");
                     else printf("GCD(%s, %s) = %ld\n", parsed_input[1], parsed_input[2], answer);
+                    exit(0);
                 } else if (!strcmp(parsed_input[0], "args")) {
                     printf("argc = %d, args = ", numArgs - 1);
                     for (int j = 1; j < numArgs; j++)
                         printf("%s%s", parsed_input[j], (j < numArgs - 1) ? ", " : "\n");
+                    exit(0);
+                } else if(!strcmp(parsed_input[0], "adder")) {
+                    run(parsed_input[1], parsed_input[2]);
+                    exit(0);
                 } else {
                 /* We must add a NULL as the last element apparently*/
                     parsed_input = realloc(parsed_input, (numArgs + 1) * sizeof(char *));
@@ -318,13 +324,18 @@ int main() {
                         exit(1);
                     }
                 }
-                /* restore */
-                fclose(fp);
+                /* if we opened up a file, close it back up  */
             } else {
+                if (fp) fclose(fp);
                 waitpid(fork_id, &executeStatus, WUNTRACED);
-                printf("Finished executing process!\n");
+                #if DEBUG
+                    printf("%s!\n", !executeStatus ? "Sucessfully executed" : "Failed");
+                #endif
             }
-            /* Need to handle execution status */
+            
+            /* Free memory once we're done using it */
+            for (int j = 0; j < numArgs; j++) free(parsed_input[j]);
+            free(parsed_input);
         } else {
             /* Something bad happened, free all memory & exit */
             free(username);
