@@ -5,10 +5,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <fcntl.h>
 
 #define BUFFER_LEN 1024
-#define true 1
-#define false 0
 #define DEBUG 1
 
 typedef enum shit /* lmao */ {BG, NO_BG, FROM_FILE, TO_FILE, NO_FILE } ShellInput;
@@ -168,7 +167,6 @@ char ** parse_input(char * input, int * size, ShellInput * _file, ShellInput * _
 
     return result;
 }
-
 long gcd(char * a, char * b) {
     if (!strlen(a) || !strlen(b)) return -1;
     long num1 = 0, num2 = 0;
@@ -204,19 +202,16 @@ long gcd(char * a, char * b) {
     }
     return find_gcd(num1, num2);
 }
-
 long find_gcd(long a, long b) {
     if (b == 0) return a;
     return find_gcd(b, a % b);
 }
-
 char * get_username(uid_t id) {
     struct passwd * username = getpwuid(id);
     char * value = (char *) calloc ( 1, strlen(username->pw_name) + 1);
     strcpy(value, username->pw_name);
     return value;
 }
-
 void print_shellInput(ShellInput * input) {
     if (input == NULL) return;
     switch (*input) {
@@ -228,6 +223,9 @@ void print_shellInput(ShellInput * input) {
         default: printf("ERROR CHECK PARAMS\n");
     }
 }
+int cd(char * path) {
+    return chdir(path);
+}
 
 int main() {
     /* Setting up */
@@ -235,6 +233,7 @@ int main() {
     char * username = get_username(getuid());
     char input[2048 + 1 + 1]; /* 2^11 + 1 for new line, 1 for \0 */
     gethostname(hostname, BUFFER_LEN - 1);
+    FILE * fp = NULL;
     /* Getting the username, hostname out of the way */
 
     /* Prompt */
@@ -256,16 +255,41 @@ int main() {
             /* Some variables for execution */
             pid_t fork_id;
             int executeStatus;
+            /* If we're outputting to a file */
 
-            if ((fork_id = fork()) < 0) {
-                /* The fork failed, need to do something */
-                printf("The fork failed!\n");
+            /* Read in some input */
+            char ** parsed_input = parse_input(input, &numArgs, &_file, &_bg);
+            if (parsed_input == NULL) continue;
+
+            /* If it's cd we can just deal with it ourselves */
+            if (!strcmp(parsed_input[0], "cd")) {
+                if (cd(parsed_input[1]) < 0)
+                    perror(parsed_input[1]);
+                continue;
+            }
+
+            fork_id = fork();
+            
+            if (fork_id < 0) {
+                perror("Fork failed!\n");
                 break;
-            } else if (fork_id == 0) {
+            }
+
+            if (fork_id == 0) {
                 /* Child process has been spawned */
-                char ** parsed_input = parse_input(input, &numArgs, &_file, &_bg);
                 /* This is an error! Handle it later! */
-                if (parsed_input == NULL) break;
+
+                if (_file == TO_FILE || _file == FROM_FILE) {
+                    fp = freopen(parsed_input[numArgs - 1], "w+", stdout);
+                    if (fp == NULL) {
+                        perror("File could not be opened!\n");
+                        continue;
+                    }
+                    /* remove filename from arguments */
+                    free(parsed_input[numArgs - 1]);
+                    parsed_input = realloc(parsed_input, (numArgs - 1) * sizeof(char *));
+                    numArgs--;
+                }
                 
                 #if DEBUG
                     for (int j = 0; j < numArgs; j++) printf("[%s],", parsed_input[j]);
@@ -279,33 +303,34 @@ int main() {
                     long answer = gcd(parsed_input[1], parsed_input[2]);
                     if (answer == -1) printf("No GCD was found!\n");
                     else printf("GCD(%s, %s) = %ld\n", parsed_input[1], parsed_input[2], answer);
-                    break;
                 } else if (!strcmp(parsed_input[0], "args")) {
                     printf("argc = %d, args = ", numArgs - 1);
                     for (int j = 1; j < numArgs; j++)
                         printf("%s%s", parsed_input[j], (j < numArgs - 1) ? ", " : "\n");
-                    break;
-                }
+                } else {
                 /* We must add a NULL as the last element apparently*/
-                parsed_input = realloc(parsed_input, (numArgs + 1) * sizeof(char *));
-                parsed_input[numArgs++] = NULL;
-                /* No we can properly run this */
-                if (execvp(*parsed_input, parsed_input) < 0) {
-                    /* We can now check PATH, and see if there exists another command */
-
-                    printf("Execution failed\n");
-                    break;
+                    parsed_input = realloc(parsed_input, (numArgs + 1) * sizeof(char *));
+                    parsed_input[numArgs++] = NULL;
+                    /* No we can properly run this */
+                    if (execvp(*parsed_input, parsed_input) < 0) {
+                        /* We can now check PATH, and see if there exists another command */
+                        perror(parsed_input[0]);
+                        exit(1);
+                    }
                 }
+                /* restore */
+                fclose(fp);
+            } else {
+                waitpid(fork_id, &executeStatus, WUNTRACED);
+                printf("Finished executing process!\n");
             }
-
-            waitpid(fork_id, &executeStatus, 0);
             /* Need to handle execution status */
-
         } else {
             /* Something bad happened, free all memory & exit */
             free(username);
-            exit(1);
+            break;
         }
+        //end while loop
     }
     free(username);
     return 0;
