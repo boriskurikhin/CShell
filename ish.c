@@ -233,6 +233,7 @@ int cd(char * path) {
 }
 int main() {
     /* Setting up */
+    char intro[339] = "\n\n           _.-''|''-._\n        .-'     |     `-.\n      .'\\       |       /`.\n    .'   \\      |      /   `.        Cshell\n    \\     \\     |     /     /        Made by @boriskurikhin\n     `\\    \\    |    /    /'\n       `\\   \\   |   /   /'\n         `\\  \\  |  /  /'\n        _.-`\\ \\ | / /'-._ \n       {_____`\\\\|//'_____}\n               `-'\n\n";
     char hostname[BUFFER_LEN];
     char * username = get_username(getuid());
     char input[2048 + 1 + 1]; /* 2^11 + 1 for new line, 1 for \0 */
@@ -242,6 +243,7 @@ int main() {
     /* Getting the username, hostname out of the way */
     sigset(SIGCHLD, sig_handler);
     /* Prompt */
+    printf("%s", intro);
     while (1) {
         printf("[%s@%s]%c ", username, hostname, (!geteuid() ? '#' : '$'));
         fflush(stdout);
@@ -346,8 +348,9 @@ int main() {
                 if (fpi) fclose(fpi);
                 if (fpo) fclose(fpo);
 
-                if (_bg == NO_BG) 
+                if (_bg == NO_BG) {
                     result = waitpid(fork_id, &executeStatus, WUNTRACED);
+                }
 
                 #if DEBUG
                     printf("%s!\n", !executeStatus ? "Sucessfully executed" : "Failed");
