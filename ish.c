@@ -5,10 +5,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <signal.h>
 #include "adder.h"
 
 #define BUFFER_LEN 1024
-#define DEBUG 1
+#define DEBUG 0
 
 typedef enum shit /* lmao */ { BG, NO_BG } ShellInput;
 long find_gcd(long a, long b);
@@ -20,9 +21,18 @@ int check(int i, char * input, char c) {
     if (c == '_') return 1; /* Don't check character */
     return input[i] == c ? 1 : 0;
 }
-char ** parse_input(char * input, int * size, ShellInput * _file, ShellInput * _bg, char ** in_file, char ** out_file ) {
+void sig_handler(int _signal) {
+    #if DEBUG
+        int status;
+    #endif
+    wait(&_signal);
+    #if DEBUG
+        printf("Wait returned %d\n", status);
+    #endif
+}
+char ** parse_input(char * input, int * size, ShellInput * _bg, char ** in_file, char ** out_file ) {
     /* Quick Checks */
-    if (input == NULL || _file == NULL || _bg == NULL || !strlen(input)) {
+    if (input == NULL || _bg == NULL || !strlen(input)) {
         /* Error occured, might as well return exit(1) later. */
         return NULL;
     }
@@ -221,7 +231,6 @@ void print_shellInput(ShellInput * input) {
 int cd(char * path) {
     return chdir(path);
 }
-
 int main() {
     /* Setting up */
     char hostname[BUFFER_LEN];
@@ -231,7 +240,7 @@ int main() {
     FILE * fpi = NULL;
     FILE * fpo = NULL;
     /* Getting the username, hostname out of the way */
-
+    sigset(SIGCHLD, sig_handler);
     /* Prompt */
     while (1) {
         printf("[%s@%s]%c ", username, hostname, (!geteuid() ? '#' : '$'));
@@ -247,17 +256,17 @@ int main() {
             if (!strcmp(input, "exit")) break;
  
             int numArgs = 0;
-            ShellInput _file, _bg;
+            ShellInput _bg = NO_BG;
             /* Some variables for execution */
             pid_t fork_id;
-            int executeStatus;
+            int executeStatus = 0;
             int result;
             /* If we're outputting to a file */
             char * in_file = NULL;
             char * out_file = NULL;
 
             /* Read in some input */
-            char ** parsed_input = parse_input(input, &numArgs, &_file, &_bg, &in_file, &out_file);
+            char ** parsed_input = parse_input(input, &numArgs, &_bg, &in_file, &out_file);
             if (parsed_input == NULL) continue;
 
             /* If it's cd we can just deal with it ourselves */
@@ -281,7 +290,6 @@ int main() {
                 #if DEBUG
                     for (int j = 0; j < numArgs; j++) printf("[%s],", parsed_input[j]);
                     printf("\n");
-                    print_shellInput(&_file);
                     print_shellInput(&_bg);
                 #endif
 
@@ -334,12 +342,13 @@ int main() {
                         exit(1);
                     }
                 }
-                /* if we opened up a file, close it back up  */
             } else {
                 if (fpi) fclose(fpi);
                 if (fpo) fclose(fpo);
 
-                result = waitpid(fork_id, &executeStatus, WUNTRACED);
+                if (_bg == NO_BG) 
+                    result = waitpid(fork_id, &executeStatus, WUNTRACED);
+
                 #if DEBUG
                     printf("%s!\n", !executeStatus ? "Sucessfully executed" : "Failed");
                 #endif
