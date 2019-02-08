@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <pwd.h>
 #include <string.h>
 #include <stdlib.h>
@@ -13,6 +14,27 @@
 
 typedef enum shit /* lmao */ { BG, NO_BG } ShellInput;
 long find_gcd(long a, long b);
+
+int is_number(char * str) {
+    int l = strlen(str);
+    for (int i = 1; i < l; i++)
+        if (str[i] < '0' || str[i] > '9') return 0;
+    return 1;
+}
+
+int is_hex(char * str) {
+    int l = strlen(str);
+    for (int i = 0; i < l; i++) {
+        if ( (str[i] >= '0' && str[i] <= '9') || (str[i] >= 'a' && str[i] <= 'f') || (str[i] >= 'A' && str[i] <= 'F')) {
+            continue;
+        } else if (str[i] == 'x' || str[i] == 'X'){
+            if (i != 1) return 0;
+        } else {
+            return 0;
+        }
+    }
+    return 1;
+}
 
 /* Helper function that helps us parse the file */
 int check(int i, char * input, char c) {
@@ -49,7 +71,6 @@ char ** parse_input(char * input, int * size, ShellInput * _bg, char ** in_file,
 
     /* Some more stuff to check later */
     int tofile = 0;
-    int fromfile = 0;
     int background = 0;
 
     int k = 0;
@@ -125,7 +146,6 @@ char ** parse_input(char * input, int * size, ShellInput * _bg, char ** in_file,
                     free(result);
                     return NULL;
                 }
-                fromfile = 1;
                 int fi = 0;
                 /* Allocate some memory */
                 *in_file = (char *) calloc(1, 1000);
@@ -241,7 +261,7 @@ int main() {
     FILE * fpi = NULL;
     FILE * fpo = NULL;
     /* Getting the username, hostname out of the way */
-    sigset(SIGCHLD, sig_handler);
+    /* sigset(SIGCHLD, sig_handler); */
     /* Prompt */
     printf("%s", intro);
     while (1) {
@@ -262,7 +282,6 @@ int main() {
             /* Some variables for execution */
             pid_t fork_id;
             int executeStatus = 0;
-            int result;
             /* If we're outputting to a file */
             char * in_file = NULL;
             char * out_file = NULL;
@@ -271,17 +290,21 @@ int main() {
             char ** parsed_input = parse_input(input, &numArgs, &_bg, &in_file, &out_file);
             if (parsed_input == NULL) continue;
 
-            /* If it's cd we can just deal with it ourselves */
+						
             if (!strcmp(parsed_input[0], "cd")) {
-                if (cd(parsed_input[1]) < 0)
-                    perror(parsed_input[1]);
+                if (numArgs != 2) {
+                    fprintf(stderr, "usage: %s path\n", parsed_input[0]);
+                } else if ( cd(parsed_input[1]) < 0) {
+                    fprintf(stderr, "cd into %s failed!\n", parsed_input[1]);
+                }
                 continue;
-            }
+            } 
 
             fork_id = fork();
+
             
             if (fork_id < 0) {
-                perror("Fork failed!\n");
+                fprintf(stderr, "Fork failed!\n");
                 break;
             }
 
@@ -302,8 +325,8 @@ int main() {
                     #endif
                     fpi = freopen(in_file, "r" , stdin );
                     if (fpi == NULL) {
-                        perror("File could not be opened!\n");
-                        continue;
+                        fprintf(stderr, "File could not be opened!\n");
+                        exit(EXIT_FAILURE);
                     }
                 }
                 
@@ -314,8 +337,8 @@ int main() {
                     #endif
                     fpo = freopen(out_file, "w+", stdout );
                     if (fpo == NULL) {
-                        perror("File could not be opened!\n");
-                        continue;
+                        fprintf(stderr, "File could not be opened!\n");
+                        exit(EXIT_FAILURE);
                     }
                 }
                 
@@ -323,25 +346,35 @@ int main() {
                 if (!strcmp(parsed_input[0], "gcd")) {
                     long answer = gcd(parsed_input[1], parsed_input[2]);
                     if (answer == -1) printf("No GCD was found!\n");
-                    else printf("GCD(%s, %s) = %ld\n", parsed_input[1], parsed_input[2], answer);
-                    exit(0);
+                    if (numArgs == 3 && is_hex(parsed_input[1]) && is_hex(parsed_input[2])) {
+                        printf("GCD(%s, %s) = %ld\n", parsed_input[1], parsed_input[2], answer);
+                    } else {
+                        fprintf(stderr, "usage: %s number1 number2\n", parsed_input[0]);
+                        exit(EXIT_FAILURE);
+                    }
+                    exit(EXIT_SUCCESS);
                 } else if (!strcmp(parsed_input[0], "args")) {
                     printf("argc = %d, args = ", numArgs - 1);
                     for (int j = 1; j < numArgs; j++)
                         printf("%s%s", parsed_input[j], (j < numArgs - 1) ? ", " : "\n");
-                    exit(0);
+                     exit(EXIT_SUCCESS);
                 } else if(!strcmp(parsed_input[0], "adder")) {
-                    run(parsed_input[1], parsed_input[2]);
-                    exit(0);
+                    if (numArgs == 3  && is_number(parsed_input[1]) && is_number(parsed_input[2])) {
+                        run(parsed_input[1], parsed_input[2]);
+                    } else {
+                        fprintf(stderr, "usage: %s number1 number2\n", parsed_input[0]);
+                        exit(EXIT_FAILURE);
+                    }
+                    exit(EXIT_SUCCESS);
                 } else {
-                /* We must add a NULL as the last element apparently*/
+                    /* We must add a NULL as the last element apparently*/
                     parsed_input = realloc(parsed_input, (numArgs + 1) * sizeof(char *));
                     parsed_input[numArgs++] = NULL;
                     /* No we can properly run this */
                     if (execvp(*parsed_input, parsed_input) < 0) {
                         /* We can now check PATH, and see if there exists another command */
                         printf("No command '%s' found.\n", parsed_input[0]);
-                        exit(1);
+                        exit(EXIT_FAILURE);
                     }
                 }
             } else {
@@ -349,7 +382,7 @@ int main() {
                 if (fpo) fclose(fpo);
 
                 if (_bg == NO_BG) {
-                    result = waitpid(fork_id, &executeStatus, WUNTRACED);
+                    waitpid(fork_id, &executeStatus, WUNTRACED);
                 }
 
                 #if DEBUG
