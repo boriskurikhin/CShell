@@ -4,14 +4,13 @@
 #include <pwd.h>
 #include <string.h>
 #include <stdlib.h>
-#include <strings.h>
 #include <fcntl.h>
 #include "adder.h"
 
 #define BUFFER_LEN 1024
 #define DEBUG 1
 
-typedef enum shit /* lmao */ {BG, NO_BG, FROM_FILE, TO_FILE, NO_FILE } ShellInput;
+typedef enum shit /* lmao */ { BG, NO_BG } ShellInput;
 long find_gcd(long a, long b);
 
 /* Helper function that helps us parse the file */
@@ -21,7 +20,7 @@ int check(int i, char * input, char c) {
     if (c == '_') return 1; /* Don't check character */
     return input[i] == c ? 1 : 0;
 }
-char ** parse_input(char * input, int * size, ShellInput * _file, ShellInput * _bg) {
+char ** parse_input(char * input, int * size, ShellInput * _file, ShellInput * _bg, char ** in_file, char ** out_file ) {
     /* Quick Checks */
     if (input == NULL || _file == NULL || _bg == NULL || !strlen(input)) {
         /* Error occured, might as well return exit(1) later. */
@@ -43,7 +42,6 @@ char ** parse_input(char * input, int * size, ShellInput * _file, ShellInput * _
     int fromfile = 0;
     int background = 0;
 
-    char filename[256] = "\0";
     int k = 0;
 
     /* Main parsing loop */
@@ -81,22 +79,37 @@ char ** parse_input(char * input, int * size, ShellInput * _file, ShellInput * _
         /* Check for arguments */
         } else if (input[i] == '>' && !openQuotes) {
             if (check(i-1,input,' ') && check(i+1,input, ' ')) {
-                if (fromfile || tofile || (i + 2 >= strlen(input))) {
+                if ( tofile || (i + 2 >= strlen(input))) {
                     /* Can't have a from file and to file */
                     for (int j = 0; j < numArgs; j++) free(result[j]);
                     free(result);
                     return NULL;
                 }
                 tofile = 1;
+                /* Allocate some memory */
+                *out_file = (char *) calloc(1, 1000);
+                int j = i + 2;
                 int fi = 0;
-                for (int j = i + 2; j < len; j++) filename[fi++] = input[j];
-                strcat(filename, "\0");
+                /* Skip whitespace */
+                while (input[j] == ' ') j++;
+                /* Read file into it's pointer */
+                while (j < len && input[j] != ' ') (*out_file)[fi++] = input[j++];
+                /* Add null terminator */
+                strcat((*out_file), "\0");
+                
+                if (!strlen(*out_file)) {
+                    free(*out_file);
+                    for (int j = 0; j < numArgs; j++) free(result[j]);
+                    free(result);
+                    return NULL;
+                }
                 /* Gonna need to add file later */
-                break;
+                i = j;
+                continue;
             }
         } else if(input[i] == '<' && !openQuotes) {
             if (check(i-1,input,' ') && check(i+1,input, ' ')) {
-                if (fromfile || tofile || (i + 2 >= strlen(input))) {
+                if (tofile || (i + 2 >= strlen(input))) {
                     /* Can't have a from file and to file */
                     for (int j = 0; j < numArgs; j++) free(result[j]);
                     free(result);
@@ -104,10 +117,25 @@ char ** parse_input(char * input, int * size, ShellInput * _file, ShellInput * _
                 }
                 fromfile = 1;
                 int fi = 0;
-                for (int j = i + 2; j < len; j++) filename[fi++] = input[j];
-                strcat(filename, "\0");
+                /* Allocate some memory */
+                *in_file = (char *) calloc(1, 1000);
+                int j = i + 2;
+                /* Skip whitespace */
+                while (input[j] == ' ') j++;
+                /* Read file into it's pointer */
+                while (j < len && input[j] != ' ') (*in_file)[fi++] = input[j++];
+                /* Add null terminator */
+                strcat((*in_file), "\0");
+                
+                if (!strlen(*in_file)) {
+                    free(*in_file);
+                    for (int j = 0; j < numArgs; j++) free(result[j]);
+                    free(result);
+                    return NULL;
+                }
                 /* Gonna need to add file later */
-                break;
+                i = j;
+                continue;
             }
         } else if (input[i] == '&' && !openQuotes) {
             /* Check if it's not part of input, and that it's the last thing on the line */
@@ -130,37 +158,6 @@ char ** parse_input(char * input, int * size, ShellInput * _file, ShellInput * _
         strcpy(result[numArgs++], arg);
     }
 
-    /* Check for file */
-    if (fromfile) {
-        *_file = FROM_FILE;
-        /* If we specified a file, but no file has been passed */
-        /* Or somehow to file was also passed */
-        if (strlen(filename) == 0 || tofile ) {
-            for (int j = 0; j < numArgs; j++) free(result[j]);
-            free(result);
-            return NULL;
-        }
-        /* Allocate another index */
-        if (result == NULL) result = calloc(1, sizeof(char *) );
-        else result = realloc(result, sizeof(char *) * (numArgs + 1));
-        /* Write to it */
-        result[numArgs++] = (char *) calloc(1, strlen(filename) + 1);
-        strcpy(result[numArgs - 1], filename);
-    } else if (tofile) {
-        *_file = TO_FILE;
-        /* If we specified a file, but no file was passed */
-        if (strlen(filename) == 0) {
-            for (int j = 0; j < numArgs; j++) free(result[j]);
-            free(result);
-            return NULL;
-        }
-        /* Allocate another index */
-        if (result == NULL) result = calloc(1, sizeof(char *) );
-        else result = realloc(result, sizeof(char *) * (numArgs + 1));
-        /* Write to it */
-        result[numArgs++] = (char *) calloc(1, strlen(filename) + 1);
-        strcpy(result[numArgs - 1], filename);
-    } else *_file = NO_FILE;
     /* Check for bg */
     *_bg = (background ? BG : NO_BG);
     *size = numArgs;
@@ -218,9 +215,6 @@ void print_shellInput(ShellInput * input) {
     switch (*input) {
         case BG: printf("BG_PROCESS: TRUE\n"); break;
         case NO_BG: printf("BG_PROCESS: FALSE\n"); break;
-        case FROM_FILE: printf("FILE: FROM\n"); break;
-        case TO_FILE: printf("FILE: TO\n"); break;
-        case NO_FILE: printf("FILE: NO FILE\n"); break;
         default: printf("ERROR CHECK PARAMS\n");
     }
 }
@@ -234,7 +228,8 @@ int main() {
     char * username = get_username(getuid());
     char input[2048 + 1 + 1]; /* 2^11 + 1 for new line, 1 for \0 */
     gethostname(hostname, BUFFER_LEN - 1);
-    FILE * fp = NULL;
+    FILE * fpi = NULL;
+    FILE * fpo = NULL;
     /* Getting the username, hostname out of the way */
 
     /* Prompt */
@@ -256,10 +251,13 @@ int main() {
             /* Some variables for execution */
             pid_t fork_id;
             int executeStatus;
+            int result;
             /* If we're outputting to a file */
+            char * in_file = NULL;
+            char * out_file = NULL;
 
             /* Read in some input */
-            char ** parsed_input = parse_input(input, &numArgs, &_file, &_bg);
+            char ** parsed_input = parse_input(input, &numArgs, &_file, &_bg, &in_file, &out_file);
             if (parsed_input == NULL) continue;
 
             /* If it's cd we can just deal with it ourselves */
@@ -287,16 +285,28 @@ int main() {
                     print_shellInput(&_bg);
                 #endif
 
-                if (_file == TO_FILE || _file == FROM_FILE) {
-                    fp = freopen(parsed_input[numArgs - 1], "w+", stdout);
-                    if (fp == NULL) {
+                /* Input stream */
+                if (in_file != NULL) {
+                    #if DEBUG
+                        printf("Input file: %s\n", in_file);
+                    #endif
+                    fpi = freopen(in_file, "r" , stdin );
+                    if (fpi == NULL) {
                         perror("File could not be opened!\n");
                         continue;
                     }
-                    /* remove filename from arguments */
-                    free(parsed_input[numArgs - 1]);
-                    parsed_input = realloc(parsed_input, (numArgs - 1) * sizeof(char *));
-                    numArgs--;
+                }
+                
+                /* Output stream */
+                if (out_file != NULL) {
+                    #if DEBUG
+                        printf("Output file: %s\n", out_file);
+                    #endif
+                    fpo = freopen(out_file, "w+", stdout );
+                    if (fpo == NULL) {
+                        perror("File could not be opened!\n");
+                        continue;
+                    }
                 }
                 
                 /* Check for our built in functions */
@@ -320,14 +330,16 @@ int main() {
                     /* No we can properly run this */
                     if (execvp(*parsed_input, parsed_input) < 0) {
                         /* We can now check PATH, and see if there exists another command */
-                        perror(parsed_input[0]);
+                        printf("No command '%s' found.\n", parsed_input[0]);
                         exit(1);
                     }
                 }
                 /* if we opened up a file, close it back up  */
             } else {
-                if (fp) fclose(fp);
-                waitpid(fork_id, &executeStatus, WUNTRACED);
+                if (fpi) fclose(fpi);
+                if (fpo) fclose(fpo);
+
+                result = waitpid(fork_id, &executeStatus, WUNTRACED);
                 #if DEBUG
                     printf("%s!\n", !executeStatus ? "Sucessfully executed" : "Failed");
                 #endif
@@ -337,9 +349,7 @@ int main() {
             for (int j = 0; j < numArgs; j++) free(parsed_input[j]);
             free(parsed_input);
         } else {
-            /* Something bad happened, free all memory & exit */
-            free(username);
-            break;
+            
         }
         //end while loop
     }
