@@ -6,7 +6,7 @@ The shell includes all functionality of your regular Bash. You may:
 + run a process in the background using '&'
 + change directories
 + run commands in kernel mode using 'sudo'
-+ use my custom function call 'adder'
++ use my custom function call 'adder', and compute the 'gcd' using the gcd command (it accepts base 10 and 16)
 
 1. Simply type the make command into the directory where the C files are located.
 2. Then run ./ish.o which will launch the shell
